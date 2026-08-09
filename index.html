@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    nav { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+    nav label { cursor: pointer; background: #333; color: white; padding: 8px 16px; border-radius: 4px; }
+    textarea { width: 100%; height: 150px; margin-bottom: 10px; padding: 10px; font-size: 14px; }
+    input[type=number] { padding: 8px; font-size: 14px; width: 100px; margin-bottom: 10px; }
+    button { padding: 10px 20px; background: #4CAF50; color: white; border: none; font-size: 16px; cursor: pointer; border-radius: 4px; }
+    #quiz-container { margin-top: 30px; }
+    .question-block { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 6px; }
+    .option { margin: 6px 0; cursor: pointer; padding: 6px; border-radius: 4px; }
+    .option:hover { background: #f0f0f0; }
+    .correct { background: #c8f7c5; }
+    .wrong { background: #f7c5c5; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <label for="file-input">📂 Open File</label>
+    <input type="file" id="file-input" accept=".js" style="display:none">
+  </nav>
+
+  <h1>Quiz Generator</h1>
+
+  <textarea id="story" placeholder="Paste your story here..."></textarea>
+  <br>
+  <label>Number of questions: </label>
+  <input type="number" id="question-count" value="3" min="1" max="10">
+  <br><br>
+  <button onclick="generateQuiz()">Generate Quiz</button>
+
+  <div id="quiz-container"></div>
+
+  <script>
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const script = e.target.result;
+        const match = script.match(/const questions = (\[[\s\S]*\]);/);
+        if (match) {
+          const questions = JSON.parse(match[1]);
+          renderQuiz(questions);
+        } else {
+          alert('Could not read quiz file');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    async function generateQuiz() {
+      const story = document.getElementById('story').value;
+      const question_count = parseInt(document.getElementById('question-count').value);
+
+      if (!story) { alert('Please enter a story first'); return; }
+
+      document.getElementById('quiz-container').innerHTML = '<p>Generating quiz...</p>';
+
+      const response = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ story, question_count })
+      });
+
+      const data = await response.json();
+      const questions = data.questions;
+
+      renderQuiz(questions);
+
+      const jsContent = 'const questions = ' + JSON.stringify(questions, null, 2) + ';';
+      const blob = new Blob([jsContent], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'quiz.js';
+      a.click();
+    }
+
+    function renderQuiz(questions) {
+      const container = document.getElementById('quiz-container');
+      container.innerHTML = '';
+
+      questions.forEach((q, i) => {
+        const block = document.createElement('div');
+        block.className = 'question-block';
+        block.innerHTML = `<strong>Q${i + 1}: ${q.question}</strong>`;
+
+        q.options.forEach(option => {
+          const div = document.createElement('div');
+          div.className = 'option';
+          div.textContent = option;
+          div.onclick = function() {
+            const letter = option.split(')')[0].trim();
+            if (letter === q.correct_answer) {
+              div.classList.add('correct');
+            } else {
+              div.classList.add('wrong');
+              block.querySelectorAll('.option').forEach(o => {
+                if (o.textContent.startsWith(q.correct_answer + ')')) {
+                  o.classList.add('correct');
+                }
+              });
+            }
+          };
+          block.appendChild(div);
+        });
+
+        container.appendChild(block);
+      });
+    }
+  </script>
+
+</body>
+</html>
