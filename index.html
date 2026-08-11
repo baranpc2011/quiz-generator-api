@@ -22,7 +22,7 @@
 
   <nav>
     <label for="file-input">📂 Open File</label>
-    <input type="file" id="file-input" accept=".js" style="display:none">
+    <input type="file" id="file-input" accept=".json,.js" style="display:none">
   </nav>
 
   <h1>Quiz Generator</h1>
@@ -42,16 +42,22 @@
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(e) {
-        const script = e.target.result;
-        const match = script.match(/const questions = (\[[\s\S]*\]);/);
-        if (match) {
-          const questions = JSON.parse(match[1]);
-          renderQuiz(questions);
-        } else {
-          alert('Could not read quiz file');
-        }
-      };
-      reader.readAsText(file);
+  const content = e.target.result;
+  try {
+    // try parsing as JSON first
+    const parsed = JSON.parse(content);
+    const questions = parsed.questions || parsed;
+    renderQuiz(questions);
+  } catch {
+    // fall back to .js format
+    const match = content.match(/const questions = (\[[\s\S]*\]);/);
+    if (match) {
+      renderQuiz(JSON.parse(match[1]));
+    } else {
+      alert('Could not read quiz file');
+    }
+  }
+};
     });
 
     async function generateQuiz() {
@@ -73,12 +79,12 @@
 
       renderQuiz(questions);
 
-      const jsContent = 'const questions = ' + JSON.stringify(questions, null, 2) + ';';
-      const blob = new Blob([jsContent], { type: 'text/javascript' });
+      const jsonContent = JSON.stringify({ questions }, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'quiz.js';
+     a.download = 'quiz.json';
       a.click();
     }
 
